@@ -66,7 +66,7 @@ class Stats:
     def _save(self):
         self.file.write_text(json.dumps(self.data, indent=2))
     
-    def record(self, org: str, success: bool, error_msg: str = None):
+    def record(self, org: str = None, success: bool = False, error_msg: str = None):
         self.data["total"] += 1
         if success:
             self.data["success"] += 1
@@ -593,8 +593,7 @@ class GeminiVerifier:
             }
             
         except Exception as e:
-            if self.org:
-                stats.record(self.org["name"], False, str(e))
+            stats.record(self.org["name"] if self.org else None, False, str(e))
             return {"success": False, "error": str(e)}
 
 

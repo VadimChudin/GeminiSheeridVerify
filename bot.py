@@ -265,7 +265,20 @@ def get_stats() -> dict:
             return json.loads(STATS_FILE.read_text())
         except:
             pass
-    return {"total": 0, "success": 0, "failed": 0, "orgs": {}}
+    return {
+        "total": 0, 
+        "success": 0, 
+        "failed": 0, 
+        "errors": {
+            "submit_failed": 0,
+            "api_error": 0,
+            "no_upload_url": 0,
+            "upload_failed": 0,
+            "unknown_step": 0,
+            "other": 0
+        },
+        "orgs": {}
+    }
 
 def get_main_menu_keyboard(user_id: int):
     user = get_user(user_id)
