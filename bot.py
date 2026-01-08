@@ -4,14 +4,17 @@ import random
 import logging
 import json
 import hashlib
+import ast
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from datetime import datetime, date
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from flask import Flask, request, session, redirect, url_for
+from flask import Flask, request, session, redirect, url_for, send_file
 import secrets
+import io
+import zipfile
 from threading import Thread
 import httpx
 
@@ -62,15 +65,24 @@ def load_proxies() -> list:
     """Load proxies from ENV or file. Returns empty list if no proxies."""
     # 1. Try Environment Variable (Perfect for Render)
     env_proxies = os.getenv("PROXIES_JSON", "").strip()
+    # Handle common mistake: User pasted "PROXIES_JSON=..." into the value field
+    if env_proxies.startswith("PROXIES_JSON="):
+        env_proxies = env_proxies.split("=", 1)[1].strip()
+
     if env_proxies:
         try:
             proxies = json.loads(env_proxies)
-            if isinstance(proxies, list):
-                return [p for p in proxies if p]
-        except Exception as e:
-            # Only log if it's not a multiline issue we've already seen
-            if env_proxies != "[" and env_proxies != "[]":
-                logger.error(f"Failed to parse PROXIES_JSON env var: {e}")
+        except:
+            try:
+                proxies = ast.literal_eval(env_proxies)
+            except Exception as e:
+                # Only log if it's not a multiline issue we've already seen
+                if env_proxies != "[" and env_proxies != "[]":
+                    logger.error(f"Failed to parse PROXIES_JSON env var: {e}")
+                proxies = None
+        
+        if isinstance(proxies, list):
+            return [p for p in proxies if p]
 
     # 2. Try Local File
     if PROXIES_FILE.exists():
@@ -1228,11 +1240,57 @@ def admin():
                 }))
                 broadcast_result = "Broadcast queued! It will be sent shortly."
                 
+        if action == 'update_user':
+            try:
+                target_id = request.form.get('user_id')
+                new_credits = int(request.form.get('new_credits', 0))
+                if target_id:
+                    users = load_users()
+                    if target_id not in users:
+                        # Create pseudo-user if doesn't exist
+                        users[target_id] = {
+                            "credits": new_credits,
+                            "referral_code": hashlib.md5(f"{target_id}".encode()).hexdigest()[:8].upper(),
+                            "total_verifications": 0,
+                            "joined": datetime.now().isoformat()
+                        }
+                    else:
+                        users[target_id]["credits"] = new_credits
+                    save_users(users)
+                    broadcast_result = f"✅ User {target_id} updated to {new_credits} credits."
+            except Exception as e:
+                broadcast_result = f"❌ Update failed: {e}"
+
         elif action == 'logout':
             session.pop('admin_logged_in', None)
             return redirect(url_for('dashboard'))
             
-        if action != 'broadcast':
+        elif action == 'backup':
+            # Create in-memory zip
+            memory_file = io.BytesIO()
+            with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file_path in [USERS_FILE, CODES_FILE, STATS_FILE, DAILY_FILE]:
+                    if file_path.exists():
+                        zf.write(file_path, file_path.name)
+            memory_file.seek(0)
+            return send_file(memory_file, download_name=f'bot_backup_{datetime.now().strftime("%Y%m%d")}.zip', as_attachment=True)
+            
+        elif action == 'restore':
+            if 'backup_file' in request.files:
+                f = request.files['backup_file']
+                if f.filename != '':
+                    try:
+                        with zipfile.ZipFile(f) as zf:
+                            # Verify safe filenames
+                            for name in zf.namelist():
+                                if name in ['users.json', 'codes.json', 'stats.json', 'daily.json']:
+                                    # Extract to current directory
+                                    zf.extract(name, path=Path(__file__).parent)
+                        broadcast_result = "✅ Backup successfully restored!"
+                    except Exception as e:
+                        broadcast_result = f"❌ Restore failed: {str(e)}"
+
+        if action not in ['broadcast', 'restore', 'update_user', 'create', 'delete']:
             return redirect(url_for('admin'))
 
     if not session.get('admin_logged_in'):
@@ -1326,8 +1384,23 @@ def admin():
     <body style="background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:20px;">
         <div style="max-width:900px;margin:0 auto;background:#161b22;padding:30px;border-radius:12px;border:1px solid #30363d;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-                <h2>�️ Admin Panel</h2>
-                <form method="POST"><input type="hidden" name="action" value="logout"><button type="submit" style="background:none;border:none;color:#58a6ff;cursor:pointer;text-decoration:underline;">Logout</button></form>
+                <h2>️ Admin Panel</h2>
+                <div style="display:flex;gap:15px;align-items:center;">
+                    <!-- Backup -->
+                    <form method="POST" style="margin:0;">
+                        <input type="hidden" name="action" value="backup">
+                        <button type="submit" style="background:#238636;color:white;border:1px solid rgba(240,246,252,0.1);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 Backup Data</button>
+                    </form>
+                    
+                    <!-- Restore -->
+                    <form method="POST" enctype="multipart/form-data" style="margin:0;display:flex;gap:5px;">
+                        <input type="hidden" name="action" value="restore">
+                        <label for="backup_file" style="cursor:pointer;background:#1f6feb;color:white;padding:5px 12px;border-radius:6px;font-size:12px;border:1px solid rgba(240,246,252,0.1);">📂 Restore</label>
+                        <input type="file" name="backup_file" id="backup_file" style="display:none;" onchange="this.form.submit()">
+                    </form>
+
+                    <form method="POST"><input type="hidden" name="action" value="logout"><button type="submit" style="background:none;border:none;color:#58a6ff;cursor:pointer;text-decoration:underline;">Logout</button></form>
+                </div>
             </div>
             
             {broadcast_msg}
@@ -1395,6 +1468,16 @@ def admin():
             
             <!-- User Analytics -->
             <h3 style="margin-top:30px;">👥 User Analytics</h3>
+            
+            <!-- Manual User Edit (Added Request) -->
+            <form method="POST" style="background:#21262d;padding:15px;border-radius:8px;margin-bottom:15px;display:flex;gap:10px;align-items:center;">
+                <span style="color:#8b949e;font-size:14px;">🛠️ Manage User:</span>
+                <input type="hidden" name="action" value="update_user">
+                <input type="text" name="user_id" placeholder="User ID" required style="padding:6px;background:#0d1117;border:1px solid #30363d;color:white;border-radius:4px;width:150px;">
+                <input type="number" name="new_credits" placeholder="Set Credits" required style="padding:6px;background:#0d1117;border:1px solid #30363d;color:white;border-radius:4px;width:100px;">
+                <button type="submit" style="background:#1f6feb;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Update</button>
+            </form>
+
             <table style="width:100%;text-align:left;border-collapse:collapse;">
                 <tr style="background:#21262d;">
                     <th style="padding:10px;">User ID</th>
@@ -1552,8 +1635,8 @@ async def proxy_health_worker():
     
     proxies = load_proxies()
     if not proxies:
-        logger.info("No proxies configured, skipping health check worker")
-        return
+        logger.warning("No proxies configured on startup. Worker will keep checking.")
+
     
     logger.info(f"Proxy health worker started, monitoring {len(proxies)} proxies")
     

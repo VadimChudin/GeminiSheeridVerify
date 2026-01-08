@@ -10,3 +10,7 @@ broadcast.json
 *.png
 *.back
 .agent/
+
+create_backup.py
+emergency_backup.zip
+*.zip
