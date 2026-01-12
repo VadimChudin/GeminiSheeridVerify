@@ -1709,7 +1709,7 @@ async def proxy_health_worker():
 # --- AUTO BACKUP WORKER ---
 async def auto_backup_worker(application: Application):
     """Automatically backs up data files to admin every hour"""
-    ADMIN_ID = 6374068218
+    ADMIN_ID = int(os.getenv("BACKUP_ADMIN_ID", "6374068218"))
     logger.info(f"Auto-backup worker started. Destination: {ADMIN_ID}")
     
     while True:
