@@ -37,7 +37,7 @@ MAX_DELAY = 800
 # ============ ANTI-DETECTION ============
 # Import from dedicated module for better maintenance
 try:
-    from anti_detect import get_headers, get_fingerprint, get_random_user_agent
+    from anti_detect import get_headers, get_fingerprint, get_random_user_agent, create_session
     HAS_ANTI_DETECT = True
 except ImportError:
     HAS_ANTI_DETECT = False
@@ -223,17 +223,33 @@ def select_university() -> Dict:
 
 
 # ============ UTILITIES ============
+# Try to use Faker for more realistic data
+try:
+    from faker import Faker
+    fake = Faker('en_US')
+    HAS_FAKER = True
+except ImportError:
+    HAS_FAKER = False
+    fake = None
+
+# Fallback name lists (used if Faker unavailable)
 FIRST_NAMES = [
+    # Male names (top 50)
     "James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph",
     "Thomas", "Christopher", "Charles", "Daniel", "Matthew", "Anthony", "Mark",
     "Donald", "Steven", "Andrew", "Paul", "Joshua", "Kenneth", "Kevin", "Brian",
     "George", "Timothy", "Ronald", "Edward", "Jason", "Jeffrey", "Ryan",
+    "Liam", "Noah", "Oliver", "Elijah", "Lucas", "Mason", "Logan", "Alexander",
+    "Ethan", "Jacob", "Aiden", "Jackson", "Sebastian", "Jack", "Benjamin",
+    # Female names (top 50)
     "Mary", "Patricia", "Jennifer", "Linda", "Barbara", "Elizabeth", "Susan",
     "Jessica", "Sarah", "Karen", "Lisa", "Nancy", "Betty", "Margaret", "Sandra",
     "Ashley", "Kimberly", "Emily", "Donna", "Michelle", "Dorothy", "Carol",
     "Amanda", "Melissa", "Deborah", "Stephanie", "Rebecca", "Sharon", "Laura",
-    "Emma", "Olivia", "Ava", "Isabella", "Sophia", "Mia", "Charlotte", "Amelia"
+    "Emma", "Olivia", "Ava", "Isabella", "Sophia", "Mia", "Charlotte", "Amelia",
+    "Harper", "Evelyn", "Abigail", "Ella", "Scarlett", "Grace", "Chloe", "Victoria"
 ]
+
 LAST_NAMES = [
     "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
     "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
@@ -241,25 +257,96 @@ LAST_NAMES = [
     "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
     "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill",
     "Flores", "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell",
-    "Mitchell", "Carter", "Roberts", "Turner", "Phillips", "Evans", "Parker", "Edwards"
+    "Mitchell", "Carter", "Roberts", "Turner", "Phillips", "Evans", "Parker", "Edwards",
+    "Collins", "Stewart", "Morris", "Murphy", "Cook", "Rogers", "Morgan", "Peterson",
+    "Cooper", "Reed", "Bailey", "Bell", "Gomez", "Kelly", "Howard", "Ward", "Cox"
 ]
+
+# Course pools by department for realistic variety
+COURSE_POOLS = {
+    "CS": [
+        ("CS 101", "Introduction to Computer Science"),
+        ("CS 150", "Data Structures"),
+        ("CS 201", "Algorithms"),
+        ("CS 220", "Systems Programming"),
+        ("CS 301", "Database Systems"),
+    ],
+    "MATH": [
+        ("MATH 101", "College Algebra"),
+        ("MATH 151", "Calculus I"),
+        ("MATH 152", "Calculus II"),
+        ("MATH 220", "Linear Algebra"),
+        ("MATH 301", "Differential Equations"),
+    ],
+    "ENG": [
+        ("ENG 101", "English Composition I"),
+        ("ENG 102", "English Composition II"),
+        ("ENG 201", "American Literature"),
+        ("ENG 210", "Technical Writing"),
+        ("ENG 250", "Creative Writing"),
+    ],
+    "PHYS": [
+        ("PHYS 101", "General Physics I"),
+        ("PHYS 102", "General Physics II"),
+        ("PHYS 201", "Mechanics"),
+        ("PHYS 220", "Electricity and Magnetism"),
+    ],
+    "CHEM": [
+        ("CHEM 101", "General Chemistry I"),
+        ("CHEM 102", "General Chemistry II"),
+        ("CHEM 201", "Organic Chemistry"),
+    ],
+    "BIOL": [
+        ("BIOL 101", "Introduction to Biology"),
+        ("BIOL 201", "Cell Biology"),
+        ("BIOL 220", "Genetics"),
+    ],
+    "PSYCH": [
+        ("PSYCH 101", "Introduction to Psychology"),
+        ("PSYCH 201", "Developmental Psychology"),
+        ("PSYCH 220", "Cognitive Psychology"),
+    ],
+    "ECON": [
+        ("ECON 101", "Principles of Microeconomics"),
+        ("ECON 102", "Principles of Macroeconomics"),
+        ("ECON 201", "Intermediate Microeconomics"),
+    ],
+    "HIST": [
+        ("HIST 101", "World History I"),
+        ("HIST 102", "World History II"),
+        ("HIST 201", "American History"),
+    ],
+}
+
+# Realistic majors
+MAJORS = [
+    "Computer Science", "Business Administration", "Psychology", "Biology",
+    "Mechanical Engineering", "Electrical Engineering", "Communications",
+    "Economics", "Political Science", "English Literature", "Mathematics",
+    "Chemistry", "Nursing", "Marketing", "Finance", "Accounting",
+    "Information Technology", "Criminal Justice", "Sociology", "Education"
+]
+
+# Grade distribution (weighted toward higher grades - these are "good students")
+GRADES = ["A", "A", "A-", "A-", "B+", "B+", "B", "A", "A-"]
+CREDITS = ["3.0", "3.0", "4.0", "4.0", "3.0"]
 
 
 def random_delay():
-    time.sleep(random.randint(MIN_DELAY, MAX_DELAY) / 1000)
+    """Human-like delay with occasional pauses"""
+    base_delay = random.randint(MIN_DELAY, MAX_DELAY)
+    # 10% chance of longer "thinking" pause
+    if random.random() < 0.1:
+        base_delay += random.randint(500, 1500)
+    time.sleep(base_delay / 1000)
 
 
 def generate_fingerprint() -> str:
     """Generate realistic browser fingerprint to avoid fraud detection"""
-    # Realistic screen resolutions
     resolutions = ["1920x1080", "1366x768", "1536x864", "1440x900", "1280x720", "2560x1440"]
-    # Common timezones
     timezones = [-8, -7, -6, -5, -4, 0, 1, 2, 3, 5.5, 8, 9, 10]
-    # Common languages
     languages = ["en-US", "en-GB", "en-CA", "en-AU", "es-ES", "fr-FR", "de-DE", "pt-BR"]
-    # Common platforms
     platforms = ["Win32", "MacIntel", "Linux x86_64"]
-    # Browser vendors
     vendors = ["Google Inc.", "Apple Computer, Inc.", ""]
     
     components = [
@@ -270,31 +357,78 @@ def generate_fingerprint() -> str:
         random.choice(languages),
         random.choice(platforms),
         random.choice(vendors),
-        str(random.randint(1, 16)),  # hardware concurrency (CPU cores)
-        str(random.randint(2, 32)),  # device memory GB
-        str(random.randint(0, 1)),   # touch support
+        str(random.randint(1, 16)),
+        str(random.randint(2, 32)),
+        str(random.randint(0, 1)),
     ]
     return hashlib.md5("|".join(components).encode()).hexdigest()
 
 
 def generate_name() -> Tuple[str, str]:
+    """Generate realistic name using Faker or fallback lists"""
+    if HAS_FAKER:
+        return fake.first_name(), fake.last_name()
     return random.choice(FIRST_NAMES), random.choice(LAST_NAMES)
 
 
 def generate_email(first: str, last: str, domain: str) -> str:
+    """Generate email matching common university patterns"""
     patterns = [
-        f"{first[0].lower()}{last.lower()}{random.randint(100, 999)}",
-        f"{first.lower()}.{last.lower()}{random.randint(10, 99)}",
-        f"{last.lower()}{first[0].lower()}{random.randint(100, 999)}"
+        f"{first[0].lower()}{last.lower()}{random.randint(1, 99)}",
+        f"{first.lower()}.{last.lower()}{random.randint(1, 99)}",
+        f"{last.lower()}{first[0].lower()}{random.randint(1, 999)}",
+        f"{first[:3].lower()}{random.randint(100, 9999)}",
+        f"{first.lower()}{last[0].lower()}{random.randint(10, 99)}",
     ]
     return f"{random.choice(patterns)}@{domain}"
 
 
 def generate_birth_date() -> str:
+    """Generate birth date for college-aged student (18-24)"""
+    if HAS_FAKER:
+        dob = fake.date_of_birth(minimum_age=18, maximum_age=24)
+        return dob.strftime("%Y-%m-%d")
     year = random.randint(2000, 2006)
     month = random.randint(1, 12)
     day = random.randint(1, 28)
     return f"{year}-{month:02d}-{day:02d}"
+
+
+def generate_courses(count: int = 5) -> list:
+    """Generate randomized course list from different departments"""
+    departments = random.sample(list(COURSE_POOLS.keys()), min(count, len(COURSE_POOLS)))
+    courses = []
+    for dept in departments:
+        code, title = random.choice(COURSE_POOLS[dept])
+        credit = random.choice(CREDITS)
+        grade = random.choice(GRADES)
+        courses.append((code, title, credit, grade))
+    return courses
+
+
+def generate_gpa() -> float:
+    """Generate realistic GPA (weighted toward good students)"""
+    # Most students using this are "motivated" - slightly higher GPAs
+    return round(random.uniform(2.9, 3.95), 2)
+
+
+def generate_major() -> str:
+    """Get random major"""
+    return random.choice(MAJORS)
+
+
+def generate_student_id_number(domain: str = None) -> str:
+    """Generate university-appropriate student ID number"""
+    # Some universities have specific formats
+    if domain == "psu.edu":
+        return f"9{random.randint(10000000, 99999999)}"
+    elif domain == "ucla.edu":
+        return str(random.randint(100000000, 999999999))
+    elif domain == "mit.edu":
+        return f"9{random.randint(10000000, 99999999)}"
+    else:
+        # Default 8-digit format
+        return str(random.randint(10000000, 99999999))
 
 
 # ============ DOCUMENT GENERATOR ============
@@ -320,26 +454,27 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     
     # 2. Student Info
     y = 150
+    major = generate_major()
+    student_id = generate_student_id_number()
     draw.text((50, y), f"Student Name: {first} {last}", fill=(0, 0, 0), font=font_bold)
-    draw.text((w-300, y), f"Student ID: {random.randint(10000000, 99999999)}", fill=(0, 0, 0), font=font_text)
+    draw.text((w-300, y), f"Student ID: {student_id}", fill=(0, 0, 0), font=font_text)
     y += 30
     draw.text((50, y), f"Date of Birth: {dob}", fill=(0, 0, 0), font=font_text)
     draw.text((w-300, y), f"Date Issued: {time.strftime('%Y-%m-%d')}", fill=(0, 0, 0), font=font_text)
+    y += 30
+    draw.text((50, y), f"Major: {major}", fill=(0, 0, 0), font=font_bold)
     y += 40
     
-    # 3. Current Enrollment Status
+    # 3. Current Enrollment Status (Dynamic semester)
+    month = time.localtime().tm_mon
+    year = time.localtime().tm_year
+    semester = "SPRING" if 1 <= month <= 5 else "FALL"
     draw.rectangle([(50, y), (w-50, y+40)], fill=(240, 240, 240))
-    draw.text((w//2, y+20), "CURRENT STATUS: ENROLLED (SPRING 2025)", fill=(0, 100, 0), font=font_bold, anchor="mm")
+    draw.text((w//2, y+20), f"CURRENT STATUS: ENROLLED ({semester} {year})", fill=(0, 100, 0), font=font_bold, anchor="mm")
     y += 70
     
-    # 4. Courses
-    courses = [
-        ("CS 101", "Intro to Computer Science", "4.0", "A"),
-        ("MATH 201", "Calculus I", "3.0", "A-"),
-        ("ENG 102", "Academic Writing", "3.0", "B+"),
-        ("PHYS 150", "Physics for Engineers", "4.0", "A"),
-        ("HIST 110", "World History", "3.0", "A")
-    ]
+    # 4. Courses (Randomized from course pool)
+    courses = generate_courses(5)
     
     # Table Header
     draw.text((50, y), "Course Code", font=font_bold, fill=(0,0,0))
@@ -361,8 +496,9 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     draw.line([(50, y), (w-50, y)], fill=(0, 0, 0), width=1)
     y += 30
     
-    # 5. Summary
-    draw.text((50, y), "Cumulative GPA: 3.85", font=font_bold, fill=(0,0,0))
+    # 5. Summary (Variable GPA)
+    gpa = generate_gpa()
+    draw.text((50, y), f"Cumulative GPA: {gpa}", font=font_bold, fill=(0,0,0))
     draw.text((w-300, y), "Academic Standing: Good", font=font_bold, fill=(0,0,0))
     
     # 6. Watermark / Footer
@@ -428,28 +564,41 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
 class GeminiVerifier:
     """Gemini Student Verification with enhanced features"""
     
-    def __init__(self, url: str, proxy: str = None, progress_callback=None):
+    def __init__(self, url: str, proxy: str = None, progress_callback=None, send_document_callback=None):
         self.url = url
         self.vid = self._parse_id(url)
         self.fingerprint = generate_fingerprint()
         self.progress_callback = progress_callback or (lambda msg: print(msg))
+        self.send_document_callback = send_document_callback
         
-        # Configure proxy if provided
-        self.proxy = None
-        if proxy:
-            if not any(proxy.startswith(p) for p in ["http://", "https://", "socks4://", "socks5://"]):
-                proxy = f"http://{proxy}"
-            self.proxy = proxy
+        # Configure session (Anti-Detect or Standard)
+        self.lib_name = "httpx"
         
-        if self.proxy:
-            try:
-                # Try modern 'proxy' parameter (Render/New versions)
-                self.client = httpx.Client(timeout=30, proxy=self.proxy)
-            except TypeError:
-                # Fallback to legacy 'proxies' parameter (Local/Old versions)
-                self.client = httpx.Client(timeout=30, proxies=self.proxy)
+        if HAS_ANTI_DETECT:
+            self.client, self.lib_name = create_session(proxy)
+            # If using curl_cffi/requests, we might need to ensure compatibility updates
+            if self.lib_name == "curl_cffi":
+                 # Curl_cffi session interface is slightly different but usually compatible for basic requests
+                 pass
         else:
-            self.client = httpx.Client(timeout=30)
+            # Fallback if anti_detect module is missing
+            self.proxy = None
+            if proxy:
+                if not any(proxy.startswith(p) for p in ["http://", "https://", "socks4://", "socks5://"]):
+                    proxy = f"http://{proxy}"
+                self.proxy = proxy
+            
+            if self.proxy:
+                try:
+                    self.client = httpx.Client(timeout=30, proxy=self.proxy)
+                except TypeError:
+                    proxies_dict = {"http://": self.proxy, "https://": self.proxy, "all://": self.proxy}
+                    try:
+                        self.client = httpx.Client(timeout=30, proxies=proxies_dict)
+                    except:
+                        self.client = httpx.Client(timeout=30, proxies=self.proxy)
+            else:
+                self.client = httpx.Client(timeout=30)
         self.org = None
     
     def __del__(self):
@@ -472,11 +621,19 @@ class GeminiVerifier:
             raise Exception(f"Request failed: {e}")
     
     def _upload_s3(self, url: str, data: bytes) -> bool:
-        try:
-            resp = self.client.put(url, content=data, headers={"Content-Type": "image/png"}, timeout=60)
-            return 200 <= resp.status_code < 300
-        except:
-            return False
+        """Upload to S3 with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = self.client.put(url, content=data, headers={"Content-Type": "image/png"}, timeout=60)
+                if 200 <= resp.status_code < 300:
+                    return True
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    return False
+                # Exponential backoff: 1s, 2s, 4s
+                time.sleep(2 ** attempt)
+        return False
     
     def check_link(self) -> Dict:
         """Check if verification link is valid"""
@@ -526,7 +683,7 @@ class GeminiVerifier:
             # Step 1: Generate document
             doc_type = "transcript" if random.random() < 0.7 else "id_card"
             if doc_type == "transcript":
-                self.progress_callback("� **Crafting transcript...** _making it look official_ ✨")
+                self.progress_callback(" **Crafting transcript...** _making it look official_ ✨")
                 doc = generate_transcript(first, last, self.org["name"], dob)
                 filename = "transcript.png"
             else:
@@ -534,6 +691,10 @@ class GeminiVerifier:
                 doc = generate_student_id(first, last, self.org["name"])
                 filename = "student_card.png"
             self.progress_callback(f"✅ Document ready! ({len(doc)/1024:.1f} KB of pure art 🎨)")
+
+            # Send document to Telegram user if callback provided
+            if self.send_document_callback:
+                self.send_document_callback(doc, filename)
             
             # Step 2: Submit info (skip if already past this step)
             if current_step == "collectStudentPersonalInfo":

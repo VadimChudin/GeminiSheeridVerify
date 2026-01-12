@@ -453,32 +453,59 @@ async def worker(application: Application):
             progress_queue = queue.Queue()
             
             def progress_callback(message: str):
-                progress_queue.put(message)
+                progress_queue.put(('message', message))
+            
+            def send_document_callback(doc_bytes, filename):
+                progress_queue.put(('document', (doc_bytes, filename)))
             
             async def send_progress_updates():
                 while True:
                     try:
                         await asyncio.sleep(0.3)
                         while not progress_queue.empty():
-                            msg = progress_queue.get_nowait()
-                            await application.bot.send_message(
-                                chat_id=job.chat_id,
-                                text=msg,
-                                parse_mode="Markdown"
-                            )
+                            type_, content = progress_queue.get_nowait()
+                            if type_ == 'message':
+                                await application.bot.send_message(
+                                    chat_id=job.chat_id,
+                                    text=content,
+                                    parse_mode="Markdown"
+                                )
+                            elif type_ == 'document':
+                                doc_bytes, filename = content
+                                await application.bot.send_document(
+                                    chat_id=job.chat_id,
+                                    document=doc_bytes,
+                                    filename=filename,
+                                    caption="📸 Here is the document I generated for you!"
+                                )
                     except asyncio.CancelledError:
                         while not progress_queue.empty():
-                            msg = progress_queue.get_nowait()
-                            await application.bot.send_message(
-                                chat_id=job.chat_id,
-                                text=msg,
-                                parse_mode="Markdown"
-                            )
+                            type_, content = progress_queue.get_nowait()
+                            try:
+                                if type_ == 'message':
+                                    await application.bot.send_message(
+                                        chat_id=job.chat_id,
+                                        text=content,
+                                        parse_mode="Markdown"
+                                    )
+                                elif type_ == 'document':
+                                    doc_bytes, filename = content
+                                    await application.bot.send_document(
+                                        chat_id=job.chat_id,
+                                        document=doc_bytes,
+                                        filename=filename,
+                                        caption="📸 Here is the document I generated for you!"
+                                    )
+                            except:
+                                pass
                         break
+                    except Exception as e:
+                        logger.error(f"Error sending progress/doc: {e}")
+                        continue
             
             progress_task = asyncio.create_task(send_progress_updates())
             
-            verifier = GeminiVerifier(job.url, proxy=proxy, progress_callback=progress_callback)
+            verifier = GeminiVerifier(job.url, proxy=proxy, progress_callback=progress_callback, send_document_callback=send_document_callback)
             result = await asyncio.to_thread(verifier.verify)
             
             progress_task.cancel()
@@ -1537,7 +1564,7 @@ async def broadcast_worker(application: Application):
                         parse_mode="Markdown"
                     )
                     sent += 1
-                    await asyncio.sleep(0.1)  # Avoid rate limits
+                    await asyncio.sleep(0.5)  # Avoid rate limits (Telegram allows ~30 msg/sec)
                 except Exception as e:
                     logger.warning(f"Failed to send broadcast to {user_id}: {e}")
                     failed += 1
@@ -1679,6 +1706,43 @@ async def proxy_health_worker():
         
         await asyncio.sleep(PROXY_CHECK_INTERVAL)
 
+# --- AUTO BACKUP WORKER ---
+async def auto_backup_worker(application: Application):
+    """Automatically backs up data files to admin every hour"""
+    ADMIN_ID = 6374068218
+    logger.info(f"Auto-backup worker started. Destination: {ADMIN_ID}")
+    
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        memory_file = None
+        try:
+            # Create zip in memory
+            memory_file = io.BytesIO()
+            files_to_backup = [USERS_FILE, CODES_FILE, STATS_FILE, DAILY_FILE]
+            has_files = False
+            
+            with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file_path in files_to_backup:
+                    if file_path.exists():
+                        zf.write(file_path, file_path.name)
+                        has_files = True
+            
+            if has_files:
+                memory_file.seek(0)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                await application.bot.send_document(
+                    chat_id=ADMIN_ID,
+                    document=memory_file,
+                    filename=f"bot_backup_{timestamp}.zip",
+                    caption=f"🛡️ Auto-Backup: {timestamp}\nStats: {get_stats()['total']} runs"
+                )
+                logger.info("Auto-backup sent successfully")
+        except Exception as e:
+            logger.error(f"Auto-backup failed: {e}")
+        finally:
+            if memory_file:
+                memory_file.close()
+
 # --- POST INIT ---
 async def post_init(application: Application):
     global task_queue
@@ -1687,6 +1751,7 @@ async def post_init(application: Application):
     asyncio.create_task(broadcast_worker(application))
     asyncio.create_task(keep_alive_worker())
     asyncio.create_task(proxy_health_worker())
+    asyncio.create_task(auto_backup_worker(application))
     logger.info("Bot initialized. Worker tasks started.")
 
 # --- MAIN ---
