@@ -1,6 +1,23 @@
+# ⚠️🚨 MAINTENANCE MODE - DO NOT USE 🚨⚠️
+
+> **🛑 THIS PROJECT IS CURRENTLY UNDER MAINTENANCE**
+>
+> **DO NOT USE THIS BOT RIGHT NOW!**
+>
+> SheerID has updated their fraud detection systems. Using this bot at the moment may result in:
+> - ❌ Your account being **flagged for fraud**
+> - ❌ Permanent **bans** from SheerID verification
+> - ❌ Loss of access to student discounts
+>
+> **We are working on updates to improve detection bypass. Check back later for updates.**
+>
+> _Last updated: January 2026_
+
+---
+
 # 🎭 Verification Bot | Tyrell's Edition 🚀
 
-![Status](https://img.shields.io/badge/Status-Operational-green)
+![Status](https://img.shields.io/badge/Status-🔧%20Maintenance-orange)
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)

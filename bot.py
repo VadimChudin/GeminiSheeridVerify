@@ -456,7 +456,8 @@ async def worker(application: Application):
                 progress_queue.put(('message', message))
             
             def send_document_callback(doc_bytes, filename):
-                progress_queue.put(('document', (doc_bytes, filename)))
+                # Disabled: Don't send generated documents to users
+                pass
             
             async def send_progress_updates():
                 while True:
