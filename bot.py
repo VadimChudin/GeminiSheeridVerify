@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("8771316410:AAGlDEM4vMS7af9-ATha-kg-WhexQNV5WWY")
 PORT = int(os.environ.get("PORT", 8080))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Mrn00btnw")
 ADMIN_ROUTE = os.getenv("ADMIN_ROUTE", "admin")  # Secret admin path
